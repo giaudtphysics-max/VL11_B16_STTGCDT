@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Game Giải Cứu Công Chúa</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+/* --- CẤU HÌNH GIAO DIỆN --- */
+* { box-sizing: border-box; user-select: none; -webkit-user-select: none; touch-action: manipulation; -webkit-tap-highlight-color: transparent; font-family: 'Quicksand', sans-serif; }
+body { background-color: #000; display: flex; justify-content: center; align-items: center; height: 100vh; width: 100vw; margin: 0; overflow: hidden; }
+
+/* TRẠNG THÁI KẾT NỐI */
+#connection-status { position: absolute; bottom: 10px; left: 10px; z-index: 200; color: white; font-size: 14px; background: rgba(0,0,0,0.6); padding: 5px 15px; border-radius: 20px; display: flex; align-items: center; gap: 8px; pointer-events: none; }
+.status-dot { width: 10px; height: 10px; border-radius: 50%; background: #ccc; }
+.status-dot.online { background: #2ed573; box-shadow: 0 0 5px #2ed573; }
+.status-dot.offline { background: #ff4757; }
+
+/* MÀN HÌNH XOAY NGANG */
+#rotate-msg { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #202b38; z-index: 9999; display: none; flex-direction: column; justify-content: center; align-items: center; text-align: center; color: white; padding: 20px; }
+#rotate-msg i { font-size: 60px; margin-bottom: 20px; animation: rotatePhone 2s infinite; color: #f1c40f; }
+@keyframes rotatePhone { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(-90deg); } }
+@media screen and (orientation: portrait) { #rotate-msg { display: flex; } #slide-container { opacity: 0; pointer-events: none; } }
+
+/* KHUNG GAME */
+#slide-container { width: 1280px; height: 720px; position: relative; overflow: hidden; box-shadow: 0 0 50px rgba(0,0,0,0.8); background: linear-gradient(to bottom, #87CEEB 0%, #E0F7FA 100%); transform-origin: center center; transition: transform 0.1s ease-out; }
+.cloud { position: absolute; background: rgba(255, 255, 255, 0.8); border-radius: 50px; z-index: 0; animation: floatCloud 30s infinite linear; }
+@keyframes floatCloud { from { transform: translateX(-200px); } to { transform: translateX(1400px); } }
+#game-layer { position: relative; z-index: 10; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+
+/* CÁC NÚT ĐIỀU KHIỂN */
+#music-control { position: absolute; top: 25px; right: 25px; z-index: 100; background: rgba(255,255,255,0.9); width: 60px; height: 60px; border-radius: 50%; display: flex; justify-content: center; align-items: center; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.2); font-size: 24px; color: #FF6B81; transition: 0.2s; }
+#music-control:active { transform: scale(0.9); }
+#teacher-btn { position: absolute; top: 25px; left: 25px; z-index: 100; background: #34495e; color: white; padding: 12px 20px; border-radius: 30px; display: flex; justify-content: center; align-items: center; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.2); font-weight: bold; font-size: 18px; border: 2px solid #fff; transition: 0.2s; }
+#teacher-btn:hover { background: #2c3e50; transform: scale(1.05); }
+
+/* BẢNG GIÁO VIÊN */
+#teacher-modal { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 200; display: none; flex-direction: column; align-items: center; justify-content: center; animation: fadeIn 0.3s; }
+.teacher-panel { width: 80%; height: 80%; background: white; border-radius: 20px; padding: 30px; position: relative; display: flex; flex-direction: column; }
+.close-modal { position: absolute; top: 15px; right: 20px; font-size: 30px; cursor: pointer; color: #e74c3c; }
+
+/* Nút Reset */
+.reset-btn { 
+    position: absolute; top: 15px; left: 20px; 
+    background: #e74c3c; color: white; border: none; 
+    padding: 10px 20px; border-radius: 10px; 
+    font-weight: bold; cursor: pointer; font-size: 18px; 
+    box-shadow: 0 4px 0 #c0392b; transition: 0.2s; 
+    z-index: 10; 
+}
+.reset-btn:hover { background: #ff6b6b; }
+.reset-btn:active { transform: translateY(4px); box-shadow: none; }
+
+.result-table-container { flex: 1; overflow-y: auto; margin-top: 40px; border: 1px solid #eee; border-radius: 10px; }
+.result-table { width: 100%; border-collapse: collapse; }
+.result-table th { background: #3498db; color: white; padding: 15px; text-align: left; position: sticky; top: 0; }
+.result-table td { padding: 12px 15px; border-bottom: 1px solid #eee; font-size: 18px; color: #333; }
+.status-badge { padding: 5px 10px; border-radius: 15px; font-size: 14px; font-weight: bold; }
+.st-playing { background: #f1c40f; color: #fff; }
+.st-finished { background: #2ecc71; color: #fff; }
+.st-failed { background: #e74c3c; color: #fff; }
+
+/* TYPOGRAPHY & BUTTONS */
+h1 { font-weight: 700; color: #FF6B81; margin: 0 0 15px 0; text-shadow: 2px 2px 0px #fff; font-size: 65px; line-height: 1.2; }
+h2 { font-size: 45px; color: #ff4757; margin: 15px 0; }
+h3 { font-size: 26px; color: #2f3542; font-weight: 600; }
+.screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; flex-direction: column; justify-content: center; align-items: center; padding: 20px; animation: fadeIn 0.3s ease-out; }
+.screen.active { display: flex; }
+@keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+.btn-primary { background: linear-gradient(to bottom, #FFA502, #FF7F50); border: none; border-bottom: 6px solid #E67E22; color: white; font-size: 32px; font-weight: 700; padding: 18px 50px; border-radius: 50px; cursor: pointer; margin-top: 25px; box-shadow: 0 5px 15px rgba(0,0,0,0.2); display: inline-flex; align-items: center; gap: 10px; }
+.btn-primary:active { transform: translateY(4px); border-bottom: 2px solid #E67E22; box-shadow: none; }
+.btn-primary:disabled { background: #bdc3c7; border-color: #95a5a6; cursor: not-allowed; transform: none; }
+
+/* LOBBY UI */
+.lobby-layout { display: flex; gap: 50px; align-items: center; margin-top: 15px; background: rgba(255,255,255,0.6); padding: 35px; border-radius: 35px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
+.qr-col { display: flex; flex-direction: column; gap: 20px; align-items: center; }
+.input-name { padding: 15px; border-radius: 15px; border: 3px solid #ccc; font-size: 24px; width: 300px; outline: none; text-align: center; background: rgba(255,255,255,0.95); z-index: 20; pointer-events: auto; }
+.btn-join { padding: 15px 30px; background: #2ed573; color: white; border: none; border-radius: 15px; font-size: 24px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 0 #218c74; transition: 0.2s; white-space: nowrap; }
+.btn-join:disabled { background: #bdc3c7; box-shadow: none; cursor: wait; }
+.student-list-box { width: 480px; height: 320px; background: white; border: 3px solid #a4b0be; border-radius: 20px; padding: 20px; overflow-y: auto; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 12px; }
+.tag { background: #70a1ff; color: white; padding: 10px 20px; border-radius: 25px; font-weight: bold; font-size: 20px; animation: popIn 0.3s; }
+@keyframes popIn { 0% { transform: scale(0); } 80% { transform: scale(1.1); } 100% { transform: scale(1); } }
+
+/* GAMEPLAY UI */
+.intro-container { display: flex; align-items: center; justify-content: center; gap: 40px; width: 85%; background: rgba(255,255,255,0.9); padding: 40px; border-radius: 40px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+.intro-text p { font-size: 28px; margin: 15px 0; color: #333; }
+.top-hud { position: absolute; top: 20px; width: 95%; display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.95); padding: 15px 40px; border-radius: 60px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); z-index: 50; }
+.hud-item { font-size: 28px; font-weight: 700; color: #57606f; display: flex; align-items: center; gap: 10px; }
+.progress-bg { flex: 1; height: 24px; background: #f1f2f6; margin: 0 30px; border-radius: 12px; overflow: hidden; border: 2px solid #ced6e0; }
+.progress-bar { height: 100%; width: 0%; background: linear-gradient(90deg, #f1c40f, #ff9f43); transition: width 0.3s ease; border-radius: 12px; }
+.stage-area { display: flex; justify-content: space-between; width: 94%; align-items: flex-end; height: 180px; margin-top: 70px; margin-bottom: 20px; position: relative; border-bottom: 5px solid rgba(255,255,255,0.6); }
+.q-box { background: #fff; width: 96%; max-width: 1150px; padding: 25px; border-radius: 30px; box-shadow: 0 10px 40px rgba(0,0,0,0.15); border: 5px solid #2ed573; display: flex; flex-direction: column; gap: 20px; }
+.q-text { font-size: 36px; font-weight: bold; color: #2f3542; text-align: center; min-height: 90px; display: flex; align-items: center; justify-content: center; }
+.ans-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.btn-ans { background: #f7f9fa; border: 3px solid #dfe4ea; padding: 20px; border-radius: 20px; font-size: 28px; color: #57606f; font-weight: 600; cursor: pointer; transition: 0.1s; min-height: 90px; display: flex; align-items: center; justify-content: center; text-align: center; }
+.btn-ans:active { transform: scale(0.98); background: #dfe4ea; }
+.btn-ans:disabled { opacity: 0.6; pointer-events: none; }
+.img-3d { filter: drop-shadow(0 8px 10px rgba(0,0,0,0.2)); transition: transform 0.3s; }
+.monster-anim { animation: floatMonster 3s ease-in-out infinite; }
+@keyframes floatMonster { 0%, 100% {transform: translateY(0);} 50% {transform: translateY(-10px);} }
+
+/* BẢNG XẾP HẠNG CUỐI CÙNG */
+.rank-box { background: white; width: 800px; padding: 25px; border-radius: 25px; margin-top: 10px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); max-height: 400px; display: flex; flex-direction: column; }
+.rank-scroll-area { flex: 1; overflow-y: auto; padding-right: 10px; }
+.rank-scroll-area::-webkit-scrollbar { width: 8px; }
+.rank-scroll-area::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
+.rank-scroll-area::-webkit-scrollbar-thumb { background: #bdc3c7; border-radius: 10px; }
+.rank-row { display: flex; justify-content: space-between; padding: 12px; border-bottom: 2px dashed #eee; font-size: 24px; font-weight: 600; align-items: center; }
+
+.my-result-display {
+    background: rgba(255,255,255,0.9); padding: 10px 30px; border-radius: 20px; 
+    font-size: 28px; font-weight: bold; color: #2c3e50; margin-bottom: 10px;
+    border: 3px solid #f1c40f; box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+}
+
+/* CSS MỚI CHO BẢNG NHẬP TAY */
+.manual-input-area {
+    display: none; /* Mặc định ẩn, sẽ hiện khi Offline */
+    background: #ecf0f1; padding: 15px; border-radius: 10px; margin-bottom: 20px;
+    gap: 10px; align-items: center;
+}
+.manual-input-area input {
+    padding: 10px; border-radius: 8px; border: 1px solid #ccc; font-size: 16px; outline: none;
+}
+.btn-add-manual {
+    padding: 10px 20px; background: #2980b9; color: white; border: none; border-radius: 8px; 
+    font-weight: bold; cursor: pointer;
+}
+.btn-add-manual:hover { background: #3498db; }
+    </style>
+</head>
+<body>
+
+<div id="rotate-msg"><i class="fa-solid fa-mobile-screen-button"></i><h2>Vui lòng xoay ngang điện thoại</h2></div>
+
+<div id="slide-container">
+    <div id="connection-status">
+        <div class="status-dot" id="status-dot"></div>
+        <span id="status-text">Đang kết nối...</span>
+    </div>
+
+    <div id="music-control" onclick="toggleMusic()"><i id="music-icon" class="fa-solid fa-volume-xmark"></i></div>
+    
+    <!-- NÚT BẢNG GIÁO VIÊN -->
+    <div id="teacher-btn" onclick="openTeacherBoard()"><i class="fa-solid fa-chalkboard-user"></i>&nbsp; Bảng Giáo Viên</div>
+    
+    <div class="cloud" style="width:180px; height:50px; top:40px; left:-180px; animation-duration:35s;"></div>
+    <div class="cloud" style="width:250px; height:80px; top:100px; left:-250px; animation-duration:45s; animation-delay:5s;"></div>
+    
+    <div id="game-layer">
+        <!-- 1. LOBBY -->
+        <div id="lobby-screen" class="screen active">
+            <h1>Giải Cứu Công Chúa</h1>
+            <h3 style="background: white; padding: 10px 30px; border-radius: 50px;">Chủ đề: Lực tương tác giữa các điện tích</h3>
+            <div class="lobby-layout">
+                <div class="qr-col">
+                    <div style="background: rgba(255,255,255,0.8); padding: 20px; border-radius: 25px; display: flex; align-items: flex-end; gap: 10px; border: 4px solid #fff;">
+                        <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/People/Prince.png" width="90" class="monster-anim">
+                        <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Travel%20and%20places/Castle.png" width="110">
+                        <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/People/Princess.png" width="90" class="monster-anim" style="transform: scaleX(-1);" alt="Công chúa">
+                    </div>
+                    <div style="display:flex; gap:10px;">
+                        <input type="text" id="inp-name" class="input-name" placeholder="Nhập tên bạn..." autocomplete="off">
+                        <button class="btn-join" id="btn-join" onclick="playerJoin()">Vào</button>
+                    </div>
+                </div>
+                <div class="student-list-box" id="list-area">
+                    <!-- JS sẽ điền tên học sinh vào đây -->
+                </div>
+            </div>
+            <button class="btn-primary" id="btn-start-game" disabled onclick="toScreen('intro-screen')">BẮT ĐẦU <i class="fa-solid fa-play"></i></button>
+        </div>
+
+        <!-- 2. INTRO -->
+        <div id="intro-screen" class="screen">
+            <h1>Nhiệm Vụ</h1>
+            <div class="intro-container">
+                <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/People/Prince.png" class="img-3d" width="150">
+                <div class="intro-text">
+                    <p><i class="fa-solid fa-check-circle" style="color:#2ed573"></i> Trả lời đúng <strong>6 câu hỏi</strong>.</p>
+                    <p><i class="fa-solid fa-triangle-exclamation" style="color:#ff4757"></i> Sai 1 câu là bị <strong>Rồng</strong> bắt!</p>
+                </div>
+                <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/People/Princess.png" class="img-3d" width="150">
+            </div>
+            <button class="btn-primary" onclick="startGame()">SẴN SÀNG</button>
+        </div>
+
+        <!-- 3. GAMEPLAY -->
+        <div id="game-screen" class="screen">
+            <div class="top-hud">
+                <div class="hud-item" style="color:#ff6b81;"><i class="fa-regular fa-clock"></i> <span id="timer">00:00</span></div>
+                <div class="progress-bg"><div class="progress-bar" id="p-bar"></div></div>
+                <div class="hud-item" style="color:#2f3542;"><i class="fa-solid fa-layer-group"></i> <span id="q-idx">1</span>/6</div>
+            </div>
+            <div class="stage-area">
+                <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/People/Prince.png" class="img-3d" width="120" id="hero" style="position: absolute; left: 0; bottom: 0; transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);">
+                <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/People/Princess.png" class="img-3d" width="120" id="princess" style="position: absolute; right: 0; bottom: 0; opacity:0.8;">
+            </div>
+            <div class="q-box">
+                <div class="q-text" id="q-content">Đang tải...</div>
+                <div class="ans-grid" id="ans-area"></div>
+            </div>
+        </div>
+
+        <!-- 4. KẾT QUẢ -->
+        <div id="over-screen" class="screen">
+            <h1 style="color:#2f3542; font-size:80px;">THẤT BẠI!</h1>
+            <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Animals/Dragon.png" class="img-3d monster-anim" width="220">
+            <button class="btn-primary" onclick="startGame()"><i class="fa-solid fa-rotate-right"></i> THỬ LẠI</button>
+        </div>
+
+        <div id="win-screen" class="screen">
+            <h1 style="color:#2ed573; font-size:80px; margin-bottom: 0;">CHIẾN THẮNG!</h1>
+            
+            <div id="my-score-display" class="my-result-display">
+                Thành tích: -- giây
+            </div>
+
+            <div style="display:flex; align-items:flex-end; gap:30px; margin: 10px 0;">
+                <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/People/Prince.png" class="img-3d" width="100">
+                <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Smileys/Revolving%20Hearts.png" width="70" class="monster-anim">
+                <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/People/Princess.png" class="img-3d" width="100" style="transform: scaleX(-1);">
+            </div>
+            
+            <div class="rank-box">
+                <h3 style="border-bottom:2px solid #eee; padding-bottom:10px; margin-top:0;">🏆 Bảng Vàng (Tất Cả Người Thắng)</h3>
+                <div id="rank-list" class="rank-scroll-area"></div>
+            </div>
+            <button class="btn-primary" onclick="toScreen('lobby-screen')"><i class="fa-solid fa-house"></i> TRANG CHỦ</button>
+        </div>
+    </div>
+
+    <!-- MODAL GIÁO VIÊN -->
+    <div id="teacher-modal">
+        <div class="teacher-panel">
+            <i class="fa-solid fa-xmark close-modal" onclick="closeTeacherBoard()"></i>
+            
+            <!-- NÚT RESET DỮ LIỆU -->
+            <button class="reset-btn" onclick="resetGameData()"><i class="fa-solid fa-trash-can"></i> Xóa Dữ Liệu</button>
+            
+            <h2 style="color:#2c3e50; font-size: 30px; margin:0 0 20px 0;">Bảng Kết Quả Lớp Học</h2>
+            
+            <!-- KHU VỰC NHẬP TAY (Chỉ hiện khi Offline) -->
+            <div id="manual-input-area" class="manual-input-area">
+                <h3 style="margin:0; font-size: 18px; color:#2c3e50;">✍️ Nhập kết quả thủ công:</h3>
+                <input type="text" id="manual-name" placeholder="Tên học sinh...">
+                <input type="number" id="manual-time" placeholder="Giây (VD: 45)" style="width: 120px;">
+                <button class="btn-add-manual" onclick="manualAddResult()">Thêm</button>
+            </div>
+
+            <div class="result-table-container">
+                <table class="result-table">
+                    <thead><tr><th>Tên Học Sinh</th><th>Trạng Thái</th><th>Thời Gian</th></tr></thead>
+                    <tbody id="teacher-table-body"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+    // ==========================================
+    // KHU VỰC CẤU HÌNH (DÀNH CHO BẠN KHI TẢI VỀ)
+    // ==========================================
+    const firebaseConfig = { 
+        apiKey: "AIzaSyCsRmui2moz3PI4nEEQodJGWGLdRVNZiKA",
+        authDomain: "gccc-1a497.firebaseapp.com",
+        projectId: "gccc-1a497",
+        storageBucket: "gccc-1a497.firebasestorage.app",
+        messagingSenderId: "457520576904",
+        appId: "1:457520576904:web:5f66bcb401eecbaec8623d",
+        measurementId: "G-QZ6WFVXSJY"
+    };
+    // ==========================================
+
+    let db, auth, appId;
+    let useFirebase = false; 
+    let myDocId = null;
+    let allPlayers = []; 
+
+    // UI Elements
+    const statusDot = document.getElementById('status-dot');
+    const statusText = document.getElementById('status-text');
+
+    function setStatus(isOnline) {
+        if(isOnline) {
+            statusDot.className = 'status-dot online';
+            statusText.innerText = 'Online (Đồng bộ)';
+            document.getElementById('manual-input-area').style.display = 'none';
+        } else {
+            statusDot.className = 'status-dot offline';
+            statusText.innerText = 'Offline (Mất kết nối)';
+            document.getElementById('manual-input-area').style.display = 'flex';
+        }
+    }
+
+    async function initSystem() {
+        if (firebaseConfig && firebaseConfig.apiKey) {
+            try {
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                appId = "princess-game-room-1"; // ID phòng chung
+                await signInAnonymously(auth);
+                useFirebase = true;
+                setStatus(true);
+                listenToPlayers();
+            } catch (e) {
+                console.error("Lỗi Firebase Config:", e);
+                fallbackToOffline();
+            }
+        } else if (typeof __firebase_config !== 'undefined') {
+            // Chạy trên môi trường Preview này
+            try {
+                const envConfig = JSON.parse(__firebase_config);
+                const app = initializeApp(envConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                appId = typeof __app_id !== 'undefined' ? __app_id : 'default-id';
+                
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+                useFirebase = true;
+                setStatus(true);
+                listenToPlayers();
+            } catch(e) { fallbackToOffline(); }
+        } else {
+            fallbackToOffline();
+        }
+    }
+
+    function fallbackToOffline() {
+        useFirebase = false;
+        setStatus(false);
+        // Load danh sách offline từ localStorage
+        const saved = localStorage.getItem('local_players_v3');
+        if(saved) {
+            allPlayers = JSON.parse(saved);
+            renderPlayers(allPlayers);
+        } else {
+            renderPlayers([]); 
+        }
+    }
+
+    initSystem();
+
+    // --- XỬ LÝ DỮ LIỆU ---
+
+    function listenToPlayers() {
+        if(!useFirebase) return;
+        // Sử dụng collection CHUẨN để tránh lỗi permission
+        const playersRef = collection(db, 'artifacts', appId, 'public', 'data', 'princess_game_players');
+        
+        onSnapshot(playersRef, (snapshot) => {
+            allPlayers = [];
+            snapshot.forEach((doc) => {
+                const p = doc.data();
+                p.id = doc.id;
+                allPlayers.push(p);
+            });
+            renderPlayers(allPlayers);
+        });
+    }
+
+    function renderPlayers(players) {
+        const listArea = document.getElementById('list-area');
+        const tableBody = document.getElementById('teacher-table-body');
+        
+        listArea.innerHTML = '';
+        tableBody.innerHTML = '';
+
+        if(players.length === 0) {
+            listArea.innerHTML = `
+                <div style="width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#7f8fa6;">
+                    <i class="fa-solid fa-users" style="font-size: 50px; margin-bottom:15px; opacity:0.5;"></i>
+                    <p style="font-size: 20px; margin:0;">Chưa có học sinh...</p>
+                </div>
+            `;
+        }
+
+        // Sắp xếp
+        const sortedPlayers = [...players].sort((a, b) => {
+            if (a.status === 'finished' && b.status === 'finished') return a.time - b.time;
+            if (a.status === 'finished') return -1;
+            if (b.status === 'finished') return 1;
+            return 0;
+        });
+
+        sortedPlayers.forEach(p => {
+            // Lobby
+            const tag = document.createElement('div');
+            tag.className = 'tag'; tag.innerText = p.name;
+            listArea.appendChild(tag);
+
+            // Teacher Board
+            const tr = document.createElement('tr');
+            let statusBadge = '', timeDisplay = '--';
+            if(p.status === 'playing') statusBadge = '<span class="status-badge st-playing">Đang chơi</span>';
+            else if(p.status === 'finished') {
+                statusBadge = '<span class="status-badge st-finished">Hoàn thành</span>';
+                timeDisplay = formatTime(p.time);
+            }
+            else if(p.status === 'failed') statusBadge = '<span class="status-badge st-failed">Thất bại</span>';
+            
+            tr.innerHTML = `<td>${p.name}</td><td>${statusBadge}</td><td>${timeDisplay}</td>`;
+            tableBody.appendChild(tr);
+        });
+        updateRankList();
+    }
+
+    // --- CHỨC NĂNG RESET GAME (XÓA DỮ LIỆU) ---
+    window.resetGameData = async function() {
+        const code = prompt("Nhập mật mã để xóa toàn bộ dữ liệu (Chỉ giáo viên):");
+        if (code === "1111") {
+            if (confirm("⚠️ CẢNH BÁO: Thao tác này sẽ xóa vĩnh viễn danh sách học sinh. Bạn có chắc chắn không?")) {
+                if (useFirebase) {
+                    // Xóa trên Firebase
+                    // Note: Client SDK không hỗ trợ xóa collection 1 lần, phải xóa từng doc
+                    const promises = allPlayers.map(p => {
+                        if (p.id) {
+                            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'princess_game_players', p.id);
+                            return deleteDoc(docRef);
+                        }
+                    });
+                    await Promise.all(promises);
+                } else {
+                    // Xóa Offline
+                    localStorage.removeItem('local_players_v3');
+                    allPlayers = [];
+                    renderPlayers([]);
+                }
+                alert("Đã xóa dữ liệu thành công! Lớp học đã sẵn sàng cho lượt chơi mới.");
+            }
+        } else if (code !== null) {
+            alert("❌ Mật mã sai! Vui lòng thử lại.");
+        }
+    }
+
+    // --- HÀM CHO CHẾ ĐỘ NHẬP TAY (OFFLINE) ---
+    window.manualAddResult = function() {
+        const nameInput = document.getElementById('manual-name');
+        const timeInput = document.getElementById('manual-time');
+        const name = nameInput.value.trim();
+        const time = parseInt(timeInput.value);
+
+        if (name && !isNaN(time)) {
+            const newPlayer = {
+                name: name,
+                status: 'finished',
+                time: time,
+                timestamp: Date.now()
+            };
+            allPlayers.push(newPlayer);
+            localStorage.setItem('local_players_v3', JSON.stringify(allPlayers));
+            renderPlayers(allPlayers);
+            
+            // Reset input
+            nameInput.value = '';
+            timeInput.value = '';
+            nameInput.focus();
+        } else {
+            alert("Vui lòng nhập tên và thời gian hợp lệ!");
+        }
+    }
+
+    // Học sinh chơi (Offline/Online)
+    window.playerJoin = async function() {
+        if(!window.isMusicOn && window.ac.state !== 'closed') window.toggleMusic();
+        const inp = document.getElementById('inp-name');
+        const btn = document.getElementById('btn-join');
+        const name = inp.value.trim();
+        
+        if(name) {
+            btn.innerText = "Đang vào...";
+            btn.disabled = true;
+
+            window.pName = name;
+            const newPlayer = { name: name, status: 'playing', time: 0, timestamp: Date.now() };
+
+            if(useFirebase) {
+                try {
+                    // Dùng collection chuẩn artifacts
+                    const playersRef = collection(db, 'artifacts', appId, 'public', 'data', 'princess_game_players');
+                    const docRef = await addDoc(playersRef, { ...newPlayer, timestamp: serverTimestamp() });
+                    myDocId = docRef.id;
+                } catch(e) { 
+                    console.error("Lỗi gửi, chuyển Offline", e);
+                    useFirebase = false; setStatus(false);
+                    allPlayers.push(newPlayer);
+                    localStorage.setItem('local_players_v3', JSON.stringify(allPlayers));
+                    renderPlayers(allPlayers);
+                }
+            } else {
+                allPlayers.push(newPlayer);
+                localStorage.setItem('local_players_v3', JSON.stringify(allPlayers));
+                renderPlayers(allPlayers);
+            }
+
+            document.getElementById('btn-join').style.display = 'none';
+            inp.style.display = 'none';
+            document.getElementById('btn-start-game').disabled = false;
+            window.beep('pop');
+        }
+    }
+
+    // Cập nhật kết quả
+    window.updateGameStatus = async function(status, seconds) {
+        if(useFirebase && myDocId) {
+            try {
+                const playerRef = doc(db, 'artifacts', appId, 'public', 'data', 'princess_game_players', myDocId);
+                await updateDoc(playerRef, { status: status, time: seconds });
+            } catch(e) { console.error("Sync failed", e); }
+        } else {
+            // Offline fallback
+            const me = allPlayers.find(p => p.name === window.pName);
+            if(me) {
+                me.status = status;
+                me.time = seconds;
+                localStorage.setItem('local_players_v3', JSON.stringify(allPlayers));
+                renderPlayers(allPlayers);
+            }
+        }
+    }
+
+    // --- GAME LOGIC ---
+    function updateRankList() {
+        let sourceList = allPlayers;
+        
+        // Lọc người đã thắng
+        const finished = sourceList.filter(p => p.status === 'finished');
+        // Sắp xếp theo thời gian tăng dần (nhanh nhất đầu tiên)
+        finished.sort((a, b) => a.time - b.time);
+        
+        // Hiển thị TẤT CẢ (Scrollable)
+        let html = '';
+        finished.forEach((p, i) => {
+            let color = '#333'; 
+            let icon = `<span style="display:inline-block; width:30px; text-align:center;">${i+1}.</span>`;
+            
+            if(i===0) { color = '#f1c40f'; icon = '🥇'; }
+            else if(i===1) { color = '#95a5a6'; icon = '🥈'; }
+            else if(i===2) { color = '#cd7f32'; icon = '🥉'; }
+            else { icon = '👏 ' + (i+1) + '.'; } 
+
+            html += `<div class="rank-row">
+                        <span style="color:${color}">${icon} ${p.name}</span>
+                        <span>${formatTime(p.time)}</span>
+                     </div>`;
+        });
+        const rankList = document.getElementById('rank-list');
+        if(rankList) rankList.innerHTML = html || '<p style="text-align:center;color:#999; margin-top:20px;">Chưa có ai hoàn thành!</p>';
+    }
+
+    function win() {
+        clearInterval(timer);
+        window.updateGameStatus('finished', sec);
+        document.getElementById('my-score-display').innerText = `Thành tích: ${formatTime(sec)}`;
+        window.toScreen('win-screen');
+    }
+
+    function formatTime(sec) {
+        const m = Math.floor(sec/60).toString().padStart(2,'0');
+        const s = (sec%60).toString().padStart(2,'0');
+        return `${m}:${s}`;
+    }
+
+    const data = [
+        { q: "Trong các nhận định sau, nhận định nào đúng?", a: ["Các điện tích cùng dấu hút nhau", "Các điện tích khác dấu đẩy nhau", "Các điện tích cùng dấu đẩy nhau", "Mọi điện tích đều hút nhau"], c: 2 },
+        { q: "Một thanh nhựa được cọ xát với len, một thanh thủy tinh được cọ xát với lụa. Khi đưa hai thanh lại gần nhau thì chúng hút nhau vì:", a: ["Cả hai thanh đều nhiễm điện âm", "Cả hai thanh đều nhiễm điện dương", "Hai thanh nhiễm điện trái dấu", "Hai thanh đều trung hòa điện"], c: 2 },
+        { q: "Độ lớn của lực tương tác điện giữa hai điện tích điểm không phụ thuộc vào yếu tố nào sau đây?", a: ["Độ lớn của các điện tích", "Khoảng cách giữa hai điện tích", "Môi trường đặt các điện tích", "Khối lượng của các điện tích"], c: 3 },
+        { q: "Công thức biểu diễn độ lớn lực tương tác giữa hai điện tích điểm trong không khí là:", a: ["F = k(q₁q₂)/r", "F = k(|q₁q₂|)/r²", "F = |q₁q₂|/r", "F = k/(|q₁q₂|r²)"], c: 1 },
+        { q: "Giữ nguyên hai điện tích điểm. Nếu khoảng cách giữa chúng tăng gấp 2 lần thì độ lớn lực tương tác điện:", a: ["Tăng gấp 2 lần", "Giảm 2 lần", "Giảm 4 lần", "Không thay đổi"], c: 2 },
+        { q: "Trong thí nghiệm cân xoắn Coulomb, khi tăng khoảng cách giữa hai quả cầu tích điện thì góc xoắn của dây giảm. Điều này chứng tỏ:", a: ["Lực điện tỉ lệ thuận với khoảng cách", "Lực điện không phụ thuộc khoảng cách", "Lực điện giảm khi khoảng cách tăng", "Lực điện chỉ phụ thuộc điện tích"], c: 2 }
+    ];
+
+    let gameData = [];
+    let curr = 0, timer, sec = 0;
+    window.pName = "Bạn";
+
+    // AUDIO & UTILS
+    window.ac = new (window.AudioContext || window.webkitAudioContext)();
+    window.isMusicOn = false;
+    let bgInterval;
+
+    window.toggleMusic = function() {
+        if(window.ac.state === 'suspended') window.ac.resume();
+        window.isMusicOn = !window.isMusicOn;
+        const icon = document.getElementById('music-icon');
+        if (window.isMusicOn) {
+            icon.className = 'fa-solid fa-volume-high';
+            playMusicLoop();
+            if(bgInterval) clearInterval(bgInterval);
+            bgInterval = setInterval(playMusicLoop, 2800);
+        } else {
+            icon.className = 'fa-solid fa-volume-xmark';
+            if(bgInterval) clearInterval(bgInterval);
+        }
+    }
+
+    function playMusicLoop() {
+        if(!window.isMusicOn || window.ac.state === 'suspended') return;
+        const now = window.ac.currentTime;
+        const melody = [{ f: 659.25, t: 0.0, d: 0.15 }, { f: 659.25, t: 0.3, d: 0.15 }, { f: 659.25, t: 0.6, d: 0.15 }, { f: 523.25, t: 0.9, d: 0.15 }, { f: 659.25, t: 1.2, d: 0.15 }, { f: 783.99, t: 1.6, d: 0.3 }, { f: 392.00, t: 2.2, d: 0.3 }];
+        melody.forEach(note => {
+            const osc = window.ac.createOscillator(); const gain = window.ac.createGain();
+            osc.type = 'square'; osc.frequency.setValueAtTime(note.f, now + note.t);
+            gain.gain.setValueAtTime(0.03, now + note.t); gain.gain.exponentialRampToValueAtTime(0.001, now + note.t + note.d);
+            osc.connect(gain); gain.connect(window.ac.destination); osc.start(now + note.t); osc.stop(now + note.t + note.d + 0.1);
+        });
+    }
+
+    window.beep = function(type) {
+        if(window.ac.state==='suspended') window.ac.resume();
+        const o=window.ac.createOscillator(); const g=window.ac.createGain();
+        o.connect(g); g.connect(window.ac.destination); const t=window.ac.currentTime;
+        if(type==='pop'){
+            o.type='square'; o.frequency.setValueAtTime(200,t); o.frequency.linearRampToValueAtTime(600,t+0.1);
+            g.gain.setValueAtTime(0.1,t); g.gain.linearRampToValueAtTime(0,t+0.1); o.start(t); o.stop(t+0.1);
+        } else if(type==='ok'){
+            o.type='square'; o.frequency.setValueAtTime(400,t); o.frequency.linearRampToValueAtTime(1500,t+0.2);
+            g.gain.setValueAtTime(0.1,t); g.gain.linearRampToValueAtTime(0,t+0.3); o.start(t); o.stop(t+0.3);
+        } else if(type==='err'){
+            o.type='sawtooth'; o.frequency.setValueAtTime(300,t); o.frequency.linearRampToValueAtTime(100,t+0.5);
+            g.gain.setValueAtTime(0.2,t); g.gain.linearRampToValueAtTime(0,t+0.5); o.start(t); o.stop(t+0.5);
+        }
+    }
+
+    // MAIN FUNCTIONS
+    window.fitScreen = function() {
+        const box = document.getElementById('slide-container');
+        const w = window.innerWidth; const h = window.innerHeight;
+        const scaleX = w / 1280; const scaleY = h / 720;
+        const scale = Math.min(scaleX, scaleY);
+        box.style.transform = `scale(${scale})`;
+    }
+    window.addEventListener('resize', fitScreen); window.addEventListener('load', fitScreen);
+
+    window.toScreen = function(id) {
+        window.beep('pop');
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+        setTimeout(window.fitScreen, 50);
+    }
+
+    window.startGame = function() {
+        if(!window.isMusicOn) window.toggleMusic();
+        gameData = [...data];
+        for (let i = gameData.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [gameData[i], gameData[j]] = [gameData[j], gameData[i]];
+        }
+        curr = 0; sec = 0;
+        document.getElementById('timer').innerText = "00:00";
+        if(timer) clearInterval(timer);
+        timer = setInterval(() => {
+            sec++;
+            const m = Math.floor(sec/60).toString().padStart(2,'0');
+            const s = (sec%60).toString().padStart(2,'0');
+            document.getElementById('timer').innerText = `${m}:${s}`;
+        }, 1000);
+        window.toScreen('game-screen'); setTimeout(loadQ, 100);
+    }
+
+    function updateHeroPosition() {
+        const stage = document.querySelector('.stage-area');
+        const hero = document.getElementById('hero');
+        if (stage && hero) {
+            const stageW = stage.offsetWidth || 1100;
+            const maxDist = stageW - 240; 
+            const move = (curr / data.length) * maxDist;
+            hero.style.transform = `translateX(${move}px)`;
+            document.getElementById('p-bar').style.width = ((curr/data.length)*100) + '%';
+        }
+    }
+
+    function loadQ() {
+        updateHeroPosition();
+        const d = gameData[curr];
+        document.getElementById('q-idx').innerText = curr+1;
+        document.getElementById('q-content').innerText = d.q;
+        const grid = document.getElementById('ans-area');
+        grid.innerHTML='';
+        d.a.forEach((txt, i) => {
+            const b = document.createElement('button');
+            b.className='btn-ans'; b.innerText=txt;
+            b.onclick = () => check(i);
+            grid.appendChild(b);
+        });
+    }
+
+    function check(i) {
+        if(i === gameData[curr].c) {
+            window.beep('ok'); curr++; updateHeroPosition();
+            const btns = document.querySelectorAll('.btn-ans');
+            btns.forEach(b => b.disabled = true);
+            if(curr < data.length) setTimeout(loadQ, 500);
+            else setTimeout(win, 600);
+        } else {
+            window.beep('err'); clearInterval(timer);
+            window.updateGameStatus('failed', sec);
+            window.toScreen('over-screen');
+        }
+    }
+
+    window.openTeacherBoard = function() { document.getElementById('teacher-modal').style.display = 'flex'; }
+    window.closeTeacherBoard = function() { document.getElementById('teacher-modal').style.display = 'none'; }
+
+</script>
+</body>
+</html>
